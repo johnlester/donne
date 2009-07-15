@@ -7,32 +7,6 @@ require "google_spreadsheet"
 
 DataMapper.setup(:default, 'sqlite3::memory:')
 
-class TestingSimulation
-  def initialize(options = {})
-    options = {:trials => 1000, }.merge(options)
-  end
-  
-  #define units
-  def load_units
-    BattleUnit.new( :name => 'Zombie', :max_health => 1500, 
-                    :action => [{:action_type => :physical, :amount => 50}], 
-                    :defense => {:physical => 25})
-    BattleUnit.new( :name => 'Skeleton', :max_health => 700, 
-                    :action => [{:action_type => :physical, :amount => 80}], 
-                    :defense => {:fire => 50})
-    BattleUnit.new( :name => 'Lich', :max_health => 1000, 
-                    :action => [{:action_type => :fire, :amount => 120}], 
-                    :defense => {:physical => 40, :fire => 10})
-    BattleUnit.new( :name => 'Ice Queen', :max_health => 1200, 
-                    :action => [{:action_type => :cold, :amount => 75}], 
-                    :defense => {:physical => 20})
-  end
-  
-  # loop random battles
-  
-end
-
-
 class GoogleSpreadsheetSource
   attr_reader :sheet, :num_rows
 
@@ -146,9 +120,10 @@ class Battle
 end
 
 class BattleTesting
-  def initialize(args)
-    
+  def initialize(options = {})
+    options = {:trials => 1000, }.merge(options)
   end
+
   
   def prep_db
     DataMapper.auto_migrate!
