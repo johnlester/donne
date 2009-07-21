@@ -40,8 +40,8 @@ class CardUnit
   property :max_health,       Integer
   property :actions,          Yaml, :default => []
   property :defense,          Yaml, :default => {}
-  property :battle_count,     Integer
-  property :win_count,        Integer
+  property :battle_count,     Integer, :default => 0
+  property :win_count,        Integer, :default => 0
   
   belongs_to :player
   has n, :battle_units
@@ -60,6 +60,10 @@ class CardUnit
                             :amount => (source.cell(row, 'action_0_amount').to_f * BASE_ATTACK_DAMAGE).to_i}
       new_card.save
     end
+  end
+
+  def win_percentage
+    self.win_count.to_f / self.battle_count
   end
 
 end
@@ -82,11 +86,15 @@ class BattleUnit
   
   def initialize(card_unit)
     # self.player = card_unit.player
+    unless card_unit
+      raise "nil card"
+    end
     self.name = card_unit.name
     self.max_health = card_unit.max_health
     self.actions = card_unit.actions
     self.defense = card_unit.defense
     self.current_health = self.max_health
+    self.card_unit = card_unit
     self.save
   end
 
@@ -163,7 +171,7 @@ class Battle
   
   # units who get a turn, in order of actions
   def active_units
-    self.battle_units    
+    self.battle_units.all(:alive => true)
   end
   
   
@@ -201,9 +209,18 @@ class Battle
   end
 
   def battle_done?
-    result = false
+    case dead_players
+    when 0
+      return false
+    else
+      return true
+    end
+  end
+  
+  def dead_players
+    result = 0
     self.players.each do |player|
-      result = true if units_left(player) == 0 
+      result += 1 if units_left(player) == 0 
     end
     return result
   end
@@ -211,11 +228,15 @@ class Battle
 end
 
 class BattleTesting
-  def initialize
+  def initialize(options = {})
+    options = {:count => 100}.merge!(options)
+    report_interval = options[:count] / 10
     prep_db
-    do_battle
+    options[:count].times do |i|
+      do_battle
+      puts i #if (i % report_interval) == 0
+    end    
   end
-
   
   def prep_db
     DataMapper.auto_migrate!
@@ -230,28 +251,36 @@ class BattleTesting
   end
   
   def do_battle
-    #create battle
-    battle = Battle.new
-    battle.save
+    repository do
     
-    #add players to battle    
-    #pick teams of units and add to battle
-    number_templates = CardUnit.all.size
-    @test_players.each do |player|
-      battle.players << player
-      2.times do
-        bu = BattleUnit.new(CardUnit.get(rand(number_templates)))
-        bu.update_attributes(:player => player)
-        battle.battle_units << bu
-      end
-    end
-    battle.save
+      #create battle
+      battle = Battle.new
+      battle.save
 
-    #run battle
-    outcome = battle.do_battle
-    
-    #store results
-    
+      #add players to battle    
+      #pick teams of units and add to battle
+      number_templates = CardUnit.all.size
+      @test_players.each do |player|
+        battle.players << player
+        2.times do
+          bu = BattleUnit.new(CardUnit.get(1 + rand(number_templates - 1)))
+          bu.update_attributes(:player => player)
+          battle.battle_units << bu
+        end
+      end
+      battle.save
+
+      #run battle
+      outcome = battle.do_battle
+
+      #store results
+      battle.battle_units.each do |battle_unit|
+        card = battle_unit.card_unit
+        card.battle_count += 1
+        card.win_count += 1 if battle.outcome == battle_unit.player.id
+        card.save
+      end
+    end #repository
   end
   
 end
